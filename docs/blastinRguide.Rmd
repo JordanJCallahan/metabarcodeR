@@ -1,0 +1,150 @@
+---
+title: "rblastguide"
+author: "Jordan Callahan"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Example Code for bacterial database
+
+
+```{r, eval=FALSE, echo=TRUE}
+download.file("ftp://ftp.ncbi.nlm.nih.gov/blast/db/16SMicrobial.tar.gz",
+              "16SMicrobial.tar.gz", mode='wb')
+
+untar("16SMicrobial.tar.gz", exdir="16SMicrobialDB")
+
+seq <- readRNAStringSet(system.file("examples/RNA_example.fasta",
+                                  package="rBLAST"))
+
+```
+
+## Downloading Packages
+
+Packages are a complilation of R functions, data, and code in a specific format that are stored in libraries. Upon initial download, R comes with a basic set of packages installed, but others are avaiable to download. These packages are an easy way to share code with others. In this lesson, we will be downloading and installing the taxonomizr and rBLAST packages. Taxonomizr contains functions that work with NCBI accessions and taxonomy. rBLAST is a basic local alignment search tool, searching for query sequences in databases. 
+
+```{r, eval=TRUE, echo=TRUE}
+library(taxonomizr)
+library(rBLAST)
+```
+
+
+## Setting Variables
+
+In the code below, we set dna as a variable of the function readDNAStringSet which loads sequences from an input file including fastq and fasta files. The bl variable is an output of the blast function where each compartment corresponds to a blast search. The cl variable is the result of the top hits when the dns is compared to the  blast database. 
+
+```{r, eval=TRUE, echo=TRUE}
+
+dna <- readDNAStringSet('/usr/share/data/SURE/amplicon/05/05_demult-ITS2_merged.fastq.fasta')
+
+#makeblastdb creates a folder that contains a blast database like below, replace path
+makeblastdb('ITS2.fasta', dbtype = "nucl")
+
+bl <- blast(db="ITS2.fasta")
+
+cl <- predict(bl, dna)
+
+cl[1:5,]
+#to view first 5 hits
+summary(cl)
+#shows the top QueryID hits and other summary statistics including percent identity, alignment length and mismatches. 
+```
+
+
+## Creating Vectors
+
+In this portion of code, a vector was created to contain the accession number, which is a unique identifier given to a biological polymer sequence (DNA, protein) when it is submitted to a sequence database. The accession number was contained in the SubjectID term so in order for us to isolate the unique accession numbers, a loop function was used to separate out the accession numbers from each of the SubjectID terms from the blast search.
+
+```{r, eval=TRUE, echo=TRUE}
+#views SubjectID column in blast
+cl$SubjectID
+accid = vector()
+#for every subject ID from the blast output(cl) accession number was separated from rest of the SubjectID terms 
+class(cl$SubjectID[1])
+for(i in 1:length(cl$SubjectID)){
+  accid[i]=strsplit(as.character(cl$SubjectID[i]), '[|]')[[1]][4]
+}
+```
+
+## Build taxonomizr database
+
+```{r, eval=FALSE, echo=TRUE}
+args=commandArgs(trailingOnly=TRUE)
+targ=args[[1]];
+libdir=targ
+dir.create(libdir)
+setwd(libdir)
+getNamesAndNodes()
+getAccession2taxid(types=c('nucl_gb'))
+getAccession2taxid()
+system("gunzip *.gz")
+read.accession2taxid(list.files('.','accession2taxid'),'accessionTaxa.sql')
+print(paste('taxonomizr database built and located at', getwd(), sep=' '))
+
+```
+
+
+## Getting species names
+
+```{r, eval=TRUE, echo=TRUE}
+#prepareDatabase('accessionTaxa.sql') -run this somewhere else
+taxaNodes<-read.nodes.sql("taxonomy/nodes.dmp")
+taxaNames<-read.names.sql("taxonomy/names.dmp")
+
+
+#takes accession number and gets the taxonomic ID
+ids<-accessionToTaxa(accid, 'taxonomy/accessionTaxa.sql')
+#taxlist displays the taxonomic names from each ID #
+taxlist=getTaxonomy(ids, taxaNodes, taxaNames)
+```
+
+
+## Visualizing Data
+
+Summary data with full list of taxonimic names. With the cut off at 95% identity, the families that are most represented by the data seem to be Asteraceae, Brassicaceae, Cyperaceae, Fabaceae, Orbanchaceae, Pinaceae, Poaceae, and Rosaceae.
+
+```{r, eval=TRUE, echo=TRUE}
+cltax=cbind(cl,taxlist)
+colnames(cltax)
+#ggplot for top hits or percent identity of each family
+ggplot(data=cltax) + 
+  geom_boxplot(aes(x=family, y=Perc.Ident)) + 
+  theme(axis.text.x = element_text(angle=90)) +
+  ylim(c(95,100))
+#Comparing alignment length for each family 
+ggplot(data=cltax) + 
+  geom_boxplot(aes(x=family, y=Alignment.Length)) + 
+  theme(axis.text.x = element_text(angle=90))
+```
+
+## Subsetting
+
+Subsetting can be used to select and exclude variables and observations. In this case, we will be evaluating how many blast hits each family has after subsetting the data. 
+
+```{r, eval=TRUE, echo=TRUE}
+#take the taxonomic names that have above a 95% identity and place in new data set to manipulate
+newdata <- subset(cltax, Perc.Ident >= 95, 
+                  select=c(family, Perc.Ident))
+#creates plot of selected dataset comparing family id and percent identity 
+ggplot(data=newdata) + aes(x = family, y = Perc.Ident) +
+  geom_point(alpha=0.3, color="tomato", position = "jitter") +
+  geom_boxplot(alpha=0) + coord_flip()
+```
+
+
+## dplyr
+
+This package offers a set of verb functions that offer simple solutions to data manipulation challenges. The summarise() function reduces multiple values down to a single summary.
+
+```{r, eval=TRUE, echo=TRUE}
+library(dplyr)
+newdata %>%
+  group_by(family) %>%
+  summarise(n_distinct(Perc.Ident))
+#number of hits for each family
+```
+
