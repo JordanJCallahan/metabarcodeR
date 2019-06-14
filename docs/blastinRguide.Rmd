@@ -72,7 +72,7 @@ for(i in 1:length(cl$SubjectID)){
 
 ## Build taxonomizr database
 
-```{r, eval=FALSE, echo=TRUE}
+```{r, eval=TRUE, echo=TRUE}
 args=commandArgs(trailingOnly=TRUE)
 targ=args[[1]];
 libdir=targ
