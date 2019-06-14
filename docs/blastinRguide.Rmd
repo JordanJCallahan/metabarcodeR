@@ -30,6 +30,7 @@ Packages are a complilation of R functions, data, and code in a specific format 
 ```{r, eval=TRUE, echo=TRUE}
 library(taxonomizr)
 library(rBLAST)
+library(ggplot2)
 ```
 
 
@@ -61,7 +62,7 @@ In this portion of code, a vector was created to contain the accession number, w
 
 ```{r, eval=TRUE, echo=TRUE}
 #views SubjectID column in blast
-cl$SubjectID
+cl$SubjectID[1:10]
 accid = vector()
 #for every subject ID from the blast output(cl) accession number was separated from rest of the SubjectID terms 
 class(cl$SubjectID[1])
@@ -72,7 +73,7 @@ for(i in 1:length(cl$SubjectID)){
 
 ## Build taxonomizr database
 
-```{r, eval=TRUE, echo=TRUE}
+```{r, eval=FALSE, echo=TRUE}
 args=commandArgs(trailingOnly=TRUE)
 targ=args[[1]];
 libdir=targ
